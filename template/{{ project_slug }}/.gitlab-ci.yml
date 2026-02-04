@@ -1,0 +1,73 @@
+{% if ci_provider == "gitlab" %}
+stages:
+  - lint
+  - test
+  - build
+  - security
+
+{% if stack_preset == "django" %}
+image: python:{{ python_version }}
+
+variables:
+  PIP_CACHE_DIR: .cache/pip
+
+cache:
+  paths:
+    - .cache/pip
+    - .cache/pypoetry
+
+before_script:
+  - python -m pip install --upgrade pip
+{% if python_tooling == "poetry" %}
+  - python -m pip install poetry
+{% elif python_tooling == "uv" %}
+  - python -m pip install uv
+{% endif %}
+{% elif stack_preset == "express-vue" %}
+image: node:{{ node_version }}
+
+cache:
+  paths:
+    - .npm
+    - api/node_modules
+    - frontend/node_modules
+{% endif %}
+
+lint:
+  stage: lint
+  interruptible: true
+  script:
+    - make ci-setup
+    - make lint
+    - make format-check
+    - make typecheck
+
+test:
+  stage: test
+  interruptible: true
+  script:
+    - make ci-setup
+    - make test
+
+build:
+  stage: build
+  interruptible: true
+  script:
+    - make ci-setup
+    - make build
+
+security:
+  stage: security
+  interruptible: true
+  script:
+{% if stack_preset == "django" %}
+    - make ci-setup
+    - python -m pip install pip-audit
+    - pip-audit
+{% elif stack_preset == "express-vue" %}
+    - make ci-setup
+    - npm audit --audit-level=high
+{% else %}
+    - echo "security" && exit 0
+{% endif %}
+{% endif %}

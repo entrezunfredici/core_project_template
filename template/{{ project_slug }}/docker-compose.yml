@@ -1,0 +1,104 @@
+{% if use_docker %}
+{% if stack_preset == "django" %}
+services:
+  web:
+    image: python:{{ python_version }}-slim
+    working_dir: /app
+    volumes:
+      - ./app:/app
+    command: >
+      sh -c "pip install -r requirements.txt && python manage.py migrate && python manage.py runserver 0.0.0.0:{{ django_port }}"
+    env_file:
+      - .env
+    ports:
+      - "{{ django_port }}:{{ django_port }}"
+{% if include_postgres %}
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+{% endif %}
+
+{% if include_postgres %}
+volumes:
+  postgres-data:
+{% endif %}
+
+{% elif stack_preset == "express-vue" %}
+services:
+  api:
+    image: node:{{ node_version }}
+    working_dir: /app
+    volumes:
+      - ./api:/app
+    command: >
+      sh -c "npm install && npm run dev"
+    env_file:
+      - .env
+    environment:
+      PORT: {{ api_port }}
+    ports:
+      - "{{ api_port }}:{{ api_port }}"
+{% if include_postgres %}
+    depends_on:
+      - db
+{% endif %}
+
+  frontend:
+    image: node:{{ node_version }}
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: >
+      sh -c "npm install && npm run dev -- --host 0.0.0.0 --port {{ frontend_port }}"
+    env_file:
+      - .env
+    ports:
+      - "{{ frontend_port }}:{{ frontend_port }}"
+
+{% if include_postgres %}
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+{% endif %}
+
+{% if include_postgres %}
+volumes:
+  postgres-data:
+{% endif %}
+
+{% else %}
+# Baseline compose file. Replace the app service with your real stack.
+services:
+  app:
+    image: alpine:3.19
+    command: ["sh", "-c", "sleep infinity"]
+    volumes:
+      - app-data:/data
+    networks:
+      - app-net
+
+volumes:
+  app-data:
+
+networks:
+  app-net:
+    driver: bridge
+{% endif %}
+{% endif %}

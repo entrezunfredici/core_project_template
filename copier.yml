@@ -1,4 +1,157 @@
-# questions
+﻿min_copier_version: "9.0.0"
+
+# Questions
 project_name:
-    type: str
-    help: What is your project name?
+  type: str
+  help: Project name
+
+project_slug:
+  type: str
+  help: Project slug (folder name)
+  default: "{{ project_name | lower | replace(' ', '-') | replace('_', '-') }}"
+
+project_description:
+  type: str
+  help: Short description
+  default: ""
+
+stack_preset:
+  type: str
+  help: Choose a stack preset
+  choices:
+    - django
+    - express-vue
+    - none
+  default: none
+
+python_tooling:
+  type: str
+  help: Python dependency tooling (for Django)
+  choices:
+    - pip
+    - poetry
+    - uv
+  default: "{% if stack_preset == 'django' %}poetry{% else %}pip{% endif %}"
+  when: "{{ stack_preset == 'django' }}"
+
+node_package_manager:
+  type: str
+  help: Node package manager (for Express + Vue)
+  choices:
+    - npm
+    - pnpm
+    - yarn
+  default: npm
+  when: "{{ stack_preset == 'express-vue' }}"
+
+author_name:
+  type: str
+  help: Author name
+  default: ""
+
+license:
+  type: str
+  help: Choose a license
+  choices:
+    - MIT
+    - Apache-2.0
+    - Proprietary
+  default: MIT
+
+ci_provider:
+  type: str
+  help: CI provider
+  choices:
+    - github
+    - gitlab
+    - none
+  default: github
+
+use_docker:
+  type: bool
+  help: Include Docker baseline
+  default: true
+
+add_precommit:
+  type: bool
+  help: Include pre-commit configuration
+  default: false
+
+include_postgres:
+  type: bool
+  help: Include Postgres in docker-compose
+  default: "{{ true if stack_preset == 'django' else false }}"
+  when: "{{ stack_preset != 'none' }}"
+
+python_version:
+  type: str
+  help: Python version for CI matrix examples
+  default: "3.12"
+  when: "{{ stack_preset == 'django' }}"
+
+django_port:
+  type: int
+  help: Django dev server port (docker-compose)
+  default: 8000
+  when: "{{ stack_preset == 'django' }}"
+
+node_version:
+  type: str
+  help: Node version for CI matrix examples
+  default: "20"
+  when: "{{ stack_preset == 'express-vue' }}"
+
+api_port:
+  type: int
+  help: API port (docker-compose)
+  default: 4000
+  when: "{{ stack_preset == 'express-vue' }}"
+
+frontend_port:
+  type: int
+  help: Frontend dev server port (docker-compose)
+  default: 5173
+  when: "{{ stack_preset == 'express-vue' }}"
+
+# Copier behavior
+
+_subdirectory: template
+_answers_file: .copier-answers.yml
+
+# Ensure slug safety
+_validate_project_slug:
+  - when: "{{ project_slug != project_slug | lower | replace(' ', '-') | replace('_', '-') }}"
+    error: "project_slug should be lowercase and use dashes only."
+
+# Conditional excludes
+_exclude:
+{% if not use_docker %}
+  - template/{{ project_slug }}/docker-compose.yml
+  - template/{{ project_slug }}/docker
+{% endif %}
+{% if not add_precommit %}
+  - template/{{ project_slug }}/.pre-commit-config.yaml
+{% endif %}
+{% if ci_provider != "github" %}
+  - template/{{ project_slug }}/.github
+{% endif %}
+{% if ci_provider != "gitlab" %}
+  - template/{{ project_slug }}/.gitlab-ci.yml
+{% endif %}
+{% if stack_preset != "django" %}
+  - template/{{ project_slug }}/app
+{% endif %}
+{% if stack_preset == "django" and python_tooling == "poetry" %}
+  - template/{{ project_slug }}/app/requirements.txt
+  - template/{{ project_slug }}/app/requirements-dev.txt
+{% endif %}
+{% if stack_preset == "django" and python_tooling != "poetry" %}
+  - template/{{ project_slug }}/app/pyproject.toml
+{% endif %}
+{% if stack_preset != "express-vue" %}
+  - template/{{ project_slug }}/api
+  - template/{{ project_slug }}/frontend
+{% endif %}
+
+_tasks:
+  - command: "python scripts/create_env.py --stack {{ stack_preset }}{% if stack_preset == 'django' %} --django-port {{ django_port }}{% elif stack_preset == 'express-vue' %} --api-port {{ api_port }} --frontend-port {{ frontend_port }}{% endif %}{% if stack_preset != 'none' %} --include-postgres {{ include_postgres }}{% endif %}"
