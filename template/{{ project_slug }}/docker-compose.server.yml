@@ -1,49 +1,35 @@
 {% if use_docker %}
 {% if stack_preset == "django" %}
 services:
-{% if deployment_mode == "local" %}
-  traefik:
-    image: traefik:v3.0
-    command:
-      - --api.insecure=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-    ports:
-      - "80:80"
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-{% endif %}
-
   web:
-    image: python:{{ python_version }}-slim
-    working_dir: /app
-    volumes:
-      - ./app:/app
-    command: >
-      sh -c "pip install -r requirements.txt && python manage.py migrate && python manage.py runserver 0.0.0.0:{{ django_port }}"
+    image: {{ dockerhub_namespace }}/{{ web_image_name }}:${IMAGE_TAG:-latest}
     env_file:
       - .env
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        parallelism: 1
+      restart_policy:
+        condition: on-failure
     labels:
       - traefik.enable=true
       - traefik.http.routers.web.rule=Host(`${APP_DOMAIN}`)
       - traefik.http.routers.web.entrypoints=web
-      - traefik.http.services.web.loadbalancer.server.port={{ django_port }}
+      - traefik.http.services.web.loadbalancer.server.port=8000
 {% if include_postgres %}
-    depends_on:
-      - db
-
   db:
     image: postgres:16
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 {% endif %}
 
 {% if include_monitoring %}
@@ -83,56 +69,39 @@ volumes:
 
 {% elif stack_preset == "express-vue" %}
 services:
-{% if deployment_mode == "local" %}
-  traefik:
-    image: traefik:v3.0
-    command:
-      - --api.insecure=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-    ports:
-      - "80:80"
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-{% endif %}
-
   api:
-    image: node:{{ node_version }}
-    working_dir: /app
-    volumes:
-      - ./api:/app
-    command: >
-      sh -c "npm install && npm run dev"
+    image: {{ dockerhub_namespace }}/{{ api_image_name }}:${IMAGE_TAG:-latest}
     env_file:
       - .env
-    environment:
-      PORT: {{ api_port }}
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        parallelism: 1
+      restart_policy:
+        condition: on-failure
     labels:
       - traefik.enable=true
       - traefik.http.routers.api.rule=Host(`${API_DOMAIN}`)
       - traefik.http.routers.api.entrypoints=web
-      - traefik.http.services.api.loadbalancer.server.port={{ api_port }}
-{% if include_postgres %}
-    depends_on:
-      - db
-{% endif %}
+      - traefik.http.services.api.loadbalancer.server.port=4000
 
   frontend:
-    image: node:{{ node_version }}
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    command: >
-      sh -c "npm install && npm run dev -- --host 0.0.0.0 --port {{ frontend_port }}"
+    image: {{ dockerhub_namespace }}/{{ frontend_image_name }}:${IMAGE_TAG:-latest}
     env_file:
       - .env
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        parallelism: 1
+      restart_policy:
+        condition: on-failure
     labels:
       - traefik.enable=true
       - traefik.http.routers.frontend.rule=Host(`${APP_DOMAIN}`)
       - traefik.http.routers.frontend.entrypoints=web
-      - traefik.http.services.frontend.loadbalancer.server.port={{ frontend_port }}
+      - traefik.http.services.frontend.loadbalancer.server.port=80
 
 {% if include_postgres %}
   db:
@@ -141,10 +110,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 {% endif %}
 
 {% if include_monitoring %}
@@ -181,23 +152,5 @@ volumes:
 {% if include_monitoring %}
   grafana-data:
 {% endif %}
-
-{% else %}
-# Baseline compose file. Replace the app service with your real stack.
-services:
-  app:
-    image: alpine:3.19
-    command: ["sh", "-c", "sleep infinity"]
-    volumes:
-      - app-data:/data
-    networks:
-      - app-net
-
-volumes:
-  app-data:
-
-networks:
-  app-net:
-    driver: bridge
 {% endif %}
 {% endif %}
