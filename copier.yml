@@ -218,41 +218,21 @@ _validate_project_slug:
 
 # Conditional excludes
 _exclude:
-{% if not use_docker %}
-  - template/{{ project_slug }}/docker-compose.yml
-  - template/{{ project_slug }}/docker
-  - template/{{ project_slug }}/docker-compose.server.yml
-{% endif %}
-{% if not add_precommit %}
-  - template/{{ project_slug }}/.pre-commit-config.yaml
-{% endif %}
-{% if ci_provider != "github" %}
-  - template/{{ project_slug }}/.github
-{% endif %}
-{% if ci_provider != "gitlab" %}
-  - template/{{ project_slug }}/.gitlab-ci.yml
-{% endif %}
-{% if stack_preset != "django" %}
-  - template/{{ project_slug }}/app
-{% endif %}
-{% if stack_preset == "django" and python_tooling == "poetry" %}
-  - template/{{ project_slug }}/app/requirements.txt
-  - template/{{ project_slug }}/app/requirements-dev.txt
-{% endif %}
-{% if stack_preset == "django" and python_tooling != "poetry" %}
-  - template/{{ project_slug }}/app/pyproject.toml
-{% endif %}
-{% if stack_preset != "express-vue" %}
-  - template/{{ project_slug }}/api
-  - template/{{ project_slug }}/frontend
-{% endif %}
-{% if stack_preset == "none" %}
-  - template/{{ project_slug }}/docker-compose.server.yml
-  - template/{{ project_slug }}/.env.deploy
-{% endif %}
-{% if not include_monitoring %}
-  - template/{{ project_slug }}/monitoring
-{% endif %}
+  - "{{ ('template/' ~ project_slug ~ '/docker-compose.yml') if not use_docker else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/docker') if not use_docker else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/docker-compose.server.yml') if not use_docker else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/.pre-commit-config.yaml') if not add_precommit else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/.github') if ci_provider != 'github' else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/.gitlab-ci.yml') if ci_provider != 'gitlab' else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/app') if stack_preset != 'django' else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/app/requirements.txt') if (stack_preset == 'django' and python_tooling == 'poetry') else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/app/requirements-dev.txt') if (stack_preset == 'django' and python_tooling == 'poetry') else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/app/pyproject.toml') if (stack_preset == 'django' and python_tooling != 'poetry') else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/api') if stack_preset != 'express-vue' else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/frontend') if stack_preset != 'express-vue' else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/docker-compose.server.yml') if stack_preset == 'none' else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/.env.deploy') if stack_preset == 'none' else '__copier_no_match__' }}"
+  - "{{ ('template/' ~ project_slug ~ '/monitoring') if not include_monitoring else '__copier_no_match__' }}"
 
 _tasks:
   - command: "python scripts/create_env.py --stack {{ stack_preset }}{% if stack_preset == 'django' %} --django-port {{ django_port }}{% elif stack_preset == 'express-vue' %} --api-port {{ api_port }} --frontend-port {{ frontend_port }} --api-domain {{ api_domain }}{% endif %}{% if stack_preset != 'none' %} --include-postgres {{ include_postgres }}{% endif %}{% if include_monitoring %} --include-monitoring {{ include_monitoring }} --grafana-domain {{ grafana_domain }} --prometheus-domain {{ prometheus_domain }}{% endif %} --app-domain {{ app_domain }}"
